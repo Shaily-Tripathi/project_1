@@ -1,79 +1,115 @@
-const authorModel = require("../models/authorModel")
-const validate = require("../validators/validate")
-const isValidName = validate.isValidName
-const isEnum = validate.isEnum
-const isValidEmail = validate.isValidEmail
-const isValidPassword = validate.isValidPassword
-const jwt = require('jsonwebtoken')
-
-
-// ----------------------------------------------------- create Author ----------------------------------------------------
-
+const authorModel = require("../models/authorModel");
+const jwt = require("jsonwebtoken");
+const {
+  isValidBody,
+  isValidEmail,
+  isValidName,
+  isValidPassword,
+} = require("../validator/validation");
 
 const createAuthor = async function (req, res) {
-    try {
-        const data = req.body
-        const { fname, lname, title, email, password } = data
+  try {
+    let data = req.body;
+    let { fname, lname, title, email, password } = data;
 
-        if (Object.keys(data).length == 0) return res.status(400).send({ status: false, msg: "Data is mandatory" })
+    if (!isValidBody(data))
+      return res
+        .status(400)
+        .send({ status: false, msg: "Request body cannot be empty" });
 
-        if (!fname) return res.status(400).send({ status: false, msg: "First Name is mandatory" })
-        if (!isValidName(fname)) return res.status(400).send({ status: false, msg: "Invalid First Name, available characters ( A-Z, a-z ) with minimum 2 characters" })
+    if (!fname || !isValidName(fname))
+      return res.status(400).send({
+        status: false,
+        msg: "First name is required in a valid format",
+      });
 
+    if (!lname || !isValidName(lname))
+      return res.status(400).send({
+        status: false,
+        msg: "Last name is required in a valid format",
+      });
 
-        if (!lname) return res.status(400).send({ status: false, msg: "Last Name is mandatory" })
-        if (!isValidName(lname)) return res.status(400).send({ status: false, msg: "Invalid Last Name, available characters ( A-Z, a-z ) with minimum 2 characters" })
+    if (!title || (title != "Mr" && title != "Mrs" && title != "Miss"))
+      return res.status(400).send({
+        status: false,
+        msg: `Title is required in given format, format: "Mr","Mrs" or "Miss`,
+      });
 
-
-        if (!title) return res.status(400).send({ status: false, msg: "Title is mandatory" })
-        if (!isEnum(title)) return res.status(400).send({ status: false, msg: 'Invalid Title ,available tiltes ( Mr, Mrs, Miss)' })
-
-
-        if (!email) return res.status(400).send({ status: false, msg: "Email is mandatory" })
-        if (!isValidEmail(email)) return res.status(400).send({ status: false, msg: "Invalid Email..  ex. ( abc12@gmail.com ) " })
-        const emailExist = await authorModel.findOne({ email: email })
-        if (emailExist) return res.status(400).send({ status: false, msg: `${email.trim()} email already exists` })
-
-
-        if (!password) return res.status(400).send({ status: false, msg: "Password is mandatory" })
-        if (!isValidPassword(password)) return res.status(400).send({ status: false, msg: "Minimum 8 characters are required, including ( a-z, A-Z, 0-9, special character- !@#$%^&* )" })
-
-
-        const authorData = await authorModel.create(data)
-        return res.status(201).send({ status: true, data: authorData })
+    if (!email || !isValidEmail(email.trim())) {
+      return res
+        .status(400)
+        .send({ status: false, msg: "email is required in a valid format" });
     }
-    catch (err) {
-        return res.status(500).send({ status: false, msg: err.message })
+
+    let inputEmail = await authorModel.findOne({ email: email });
+    if (inputEmail)
+      return res
+        .status(400)
+        .send({ status: false, msg: "Provided email is already registered" });
+
+    if (!password || !isValidPassword(password))
+      return res.status(400).send({
+        status: false,
+        msg: "Password is required with these conditions: at least one upperCase, lowerCase letter, one number and one special character",
+      });
+
+    let savedata = await authorModel.create(data);
+    res.status(201).send({
+      status: true,
+      msg:"Author created succesfully",
+      data: savedata,
+    });
+  } catch (error) {
+    res.status(500).send({ status: false, message: error.message });
+  }
+};
+
+//========================================== LOGIN USER ================================================================
+
+const loginAuthor = async function (req, res) {
+  try {
+    let email = req.body.email;
+    let password = req.body.password;
+
+    if (!email || !isValidEmail(email.trim())) {
+      return res
+        .status(400)
+        .send({ status: false, msg: "email is required in a valid format" });
     }
-}
+    if (!password || !isValidPassword(password))
+      return res.status(400).send({
+        status: false,
+        msg: "Password is required with these conditions: at least one upperCase, lowerCase letter, one number and one special character",
+      });
 
+    let checkData = await authorModel.findOne({ email: email });
+    if (!checkData)
+      return res.status(400).send({
+        status: false,
+        msg: "You're not registered, registered first.",
+      });
 
-//  --------------------------------------------------------- login ----------------------------------------------------------
+    if (password != checkData.password)
+      return res.status(400).send({
+        status: false,
+        msg: "Incorrect password",
+      });
 
+    let createToken = jwt.sign(
+      {
+        authorId: checkData._id.toString(),
+        batch: "plutonium",
+        organisation: "FunctionUp",
+      },
+      "authors-secret-key"
+    );
+    return res
+      .status(201)
+      .send({ status: true,msg:"Token Created Succesfully", data:{ token: createToken }});
+  } catch (error) {
+    return res.status(500).send({ status: false, msg: error.message });
+  }
+};
 
-const login = async function (req, res) {
-    try {
-        const requestBody = req.body; // it consist email and password
-
-        if (!requestBody.email || !requestBody.password) { return res.status(400).send({ status: false, msg: "Credentials missing" }) }
-
-
-        const author = await authorModel.findOne(requestBody)
-        if (!author) return res.status(400).send({ status: false, msg: "Invalid Credentials!!" })
-
-
-        let token = jwt.sign({
-            authorId: author._id.toString(),
-            topic: "bloggingWebsite"
-        }, 'project-1-group-59');
-        //res.header('x-api-key', token)
-        res.status(200).send({ status: true, msg: "Author logged in successfully", data: token })
-    }
-    catch (err) {
-        return res.status(500).send({ msg: err.message })
-    }
-}
-
-// module.exports.createAuthor = createAuthor
-// module.exports.login = login;
-module.exports = { createAuthor, login }
+module.exports.loginAuthor = loginAuthor;
+module.exports.createAuthor = createAuthor;

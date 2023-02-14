@@ -1,24 +1,24 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const authorController = require("../controllers/authorController")
-const blogController = require("../controllers/blogController")
-const authMiddleware = require("../authMiddleware/authentication")
+const authorController = require("../controllers/authorController");
+const blogController = require("../controllers/blogController");
+const { isAuthenticate, isAuthorised, isAutForQuery } = require("../middleware/auth");
 
 
-router.post("/authors", authorController.createAuthor) // to create authors
+router.get("/test-me", function (req, res) {
+  res.send("My first ever api!");
+});
 
-router.post("/blogs", authMiddleware.authenticate, authMiddleware.authorisation, blogController.createBlogs) // to create blogs
+router.post("/authors", authorController.createAuthor);
+router.post("/blogs", isAuthenticate,blogController.createBlog);
 
-router.get("/blogs", authMiddleware.authenticate, blogController.getBlogs) // to finding blogs
+router.get("/blogs", isAuthenticate, blogController.getBlog);
+router.put("/blogs/:blogId",isAuthenticate, isAuthorised, blogController.updateBlog);
 
-router.delete("/blogs/:blogId", authMiddleware.authenticate, authMiddleware.authorisation, blogController.deleteBlogsByParam) // to deleting blogs by param
+router.delete("/blogs/:blogId",isAuthenticate,isAuthorised, blogController.deletBlogById);
+router.delete("/blogs",isAuthenticate,isAutForQuery, blogController.deleteBlog);
 
-router.delete("/blogs", authMiddleware.authenticate, authMiddleware.authorisation, blogController.deleteBlogsByQuery) // to deleting blogs by query
+router.post("/login", authorController.loginAuthor)
 
-router.put("/blogs/:blogId", authMiddleware.authenticate, authMiddleware.authorisation, blogController.updateBlog) // to updating blogs by param
-
-// phase - 2
-
-router.post("/login", authorController.login) // to login , authentication and authoriztion 
 
 module.exports = router;
